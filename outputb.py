@@ -1,3 +1,4 @@
+# board.py
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -167,3 +168,131 @@ class Board(BaseModel):
                 )
 
         return any(wall == wall_to_check for wall in self.walls)
+
+# cell.py
+from typing import Optional
+from pydantic import BaseModel
+
+from backend.quoridor.src.quoridor.consts import Position
+from backend.quoridor.src.quoridor.player import Player
+
+
+class Cell(BaseModel):
+    position: Position
+    standing_player: Optional[Player] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    @property
+    def is_occupied(self) -> bool:
+        return self.standing_player is not None
+
+    def remove_player(self) -> None:
+        self.standing_player = None
+
+    def place_player(self, player: Player) -> None:
+        self.standing_player = player
+
+# consts.py
+from enum import Enum
+
+from pydantic import BaseModel
+
+SIZE = 9
+
+
+Position = tuple[int, int]
+ROW_INDEX = 0
+COLUMN_INDEX = 1
+
+
+class Direction(str, Enum):
+    UP = "up"
+    DOWN = "down"
+    RIGHT = "right"
+    LEFT = "left"
+
+    def opposite(self) -> "Direction":
+        if self == Direction.UP:
+            return Direction.DOWN
+        elif self == Direction.DOWN:
+            return Direction.UP
+        elif self == Direction.RIGHT:
+            return Direction.LEFT
+        elif self == Direction.LEFT:
+            return Direction.RIGHT
+        raise ValueError(f"Unknown direction: {self}")
+
+
+MOVEMENT_VECTORS = {
+    Direction.UP: (-1, 0),
+    Direction.DOWN: (1, 0),
+    Direction.RIGHT: (0, 1),
+    Direction.LEFT: (0, -1),
+}
+
+
+class WallOrientation(str, Enum):
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"
+
+# game_manager.py
+
+# __init__.py
+from .board import Board
+from .player import Player
+from .cell import Cell
+from .consts import Direction, WallOrientation, Position, MOVEMENT_VECTORS
+from .wall import Wall
+
+# player.py
+from pydantic import BaseModel, Field
+
+from backend.quoridor.src.quoridor.consts import MOVEMENT_VECTORS, Direction, Position
+
+
+class Player(BaseModel):
+    name: str
+    position: Position
+    wall_count: int = Field(default=10)
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def move(self, direction: Direction, skip: bool = False) -> None:
+        row_change, col_change = MOVEMENT_VECTORS[direction]
+        self.position = (self.row + row_change, self.column + col_change)
+
+        if skip:
+            self.position = (self.position[0] + row_change, self.position[1] + col_change)
+
+    def use_wall(self) -> None:
+        if self.wall_count > 0:
+            self.wall_count -= 1
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.position, self.wall_count))
+
+# wall.py
+from pydantic import BaseModel
+
+from backend.quoridor.src.quoridor.cell import Cell
+from backend.quoridor.src.quoridor.consts import WallOrientation
+
+
+class Wall(BaseModel):
+    top_left_cell: Cell
+    orientation: WallOrientation
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def __eq__(self, other):
+        if not isinstance(other, Wall):
+            return False
+        return self.top_left_cell == other.top_left_cell and self.orientation == other.orientation
+
+    def __hash__(self):
+        return hash((self.top_left_cell.position, self.orientation))
+

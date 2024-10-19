@@ -21,3 +21,6 @@ class Player(BaseModel):
     def use_wall(self) -> None:
         if self.wall_count > 0:
             self.wall_count -= 1
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.position, self.wall_count))

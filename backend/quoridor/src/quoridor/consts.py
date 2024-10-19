@@ -32,7 +32,7 @@ MOVEMENT_VECTORS = {
     Direction.UP: (-1, 0),
     Direction.DOWN: (1, 0),
     Direction.RIGHT: (0, 1),
-    Direction.LEFT: (1, 0),
+    Direction.LEFT: (0, -1),
 }
 
 
