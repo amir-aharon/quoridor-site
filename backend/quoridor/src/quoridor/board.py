@@ -35,9 +35,6 @@ class Board(BaseModel):
             return False
         self.walls.add(new_wall)
         return True
-
-    def bfs(self, start: Position, destination_set: set[Position]) -> Optional[list[Position]]:
-
         queue = deque([(start, [])])  # Start with the player's position
         visited = set()
         visited.add(start)
@@ -59,8 +56,6 @@ class Board(BaseModel):
                     queue.append((new_position, path + [current_position]))
 
         return None  # No path found
-
-    ### GENERAL UTILS
 
     def print_board(self, players: iter[Player]):
         """Print a visual representation of the board with walls."""

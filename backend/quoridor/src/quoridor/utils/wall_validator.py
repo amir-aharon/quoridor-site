@@ -5,6 +5,7 @@ from backend.quoridor.src.quoridor.consts import (
     WallOrientation,
 )
 from backend.quoridor.src.quoridor.player import Player
+from backend.quoridor.src.quoridor.utils.path_finder import PathFinder
 from backend.quoridor.src.quoridor.wall import Wall
 
 
@@ -68,7 +69,7 @@ class WallValidator:
 
         for player in players:
             destination_set = player.destination
-            path = board.bfs(player.position, destination_set)
+            path = PathFinder.shortest_path(board, player.position, destination_set)
             if path is None:
                 all_players_have_paths = False
                 break
