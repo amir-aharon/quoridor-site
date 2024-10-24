@@ -1,6 +1,7 @@
 # board.py
 from typing import Optional
 from pydantic import BaseModel, Field
+from collections import deque
 
 from backend.quoridor.src.quoridor.cell import Cell
 from backend.quoridor.src.quoridor.consts import (
@@ -25,68 +26,7 @@ class Board(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    def print_board(self):
-        """Print a visual representation of the board with walls."""
-        for row in range(SIZE):
-            # Print cells and vertical walls
-            for col in range(SIZE):
-                cell = self._get_cell_at((row, col))
-
-                # Display cell content (e.g., players)
-                if cell.standing_player:
-                    print(f" {cell.standing_player.name[0]} ", end="")  # Player's first letter
-                else:
-                    print(" . ", end="")  # Empty cell
-
-                # Check if there is a vertical wall to the right of the cell
-                if col < SIZE - 1:  # Ensure we're not at the rightmost edge
-                    vertical_wall_exists = any(
-                        wall.orientation == WallOrientation.VERTICAL
-                        and (
-                            (wall.top_left_cell == self._get_cell_at((row, col)))
-                            or (row > 0 and wall.top_left_cell == self._get_cell_at((row - 1, col)))
-                        )
-                        for wall in self.walls
-                    )
-                    if vertical_wall_exists:
-                        print("|", end="")  # Vertical wall
-                    else:
-                        print(" ", end="")  # No wall
-
-            print()  # Newline after each row of cells
-
-            # Print horizontal walls (if not on the last row)
-            if row < SIZE - 1:
-                for col in range(SIZE):
-                    horizontal_wall_exists = any(
-                        wall.orientation == WallOrientation.HORIZONTAL
-                        and (
-                            (wall.top_left_cell == self._get_cell_at((row, col)))
-                            or (col > 0 and wall.top_left_cell == self._get_cell_at((row, col - 1)))
-                        )
-                        for wall in self.walls
-                    )
-                    if horizontal_wall_exists:
-                        print("---", end="")  # Horizontal wall
-                    else:
-                        print("   ", end="")  # No wall
-
-                    # Add spacing between columns
-                    if col < SIZE - 1:
-                        print(" ", end="")
-
-                print()  # Newline after each row of walls
-
-    def set_occupation_state(self, players: set[Player]) -> None:
-        for row in self.board:
-            for cell in row:
-                if cell.position in {player.position for player in players}:
-                    cell.place_player(next(player for player in players if player.position == cell.position))
-                else:
-                    cell.remove_player()
-
-    def _get_cell_at(self, position: Position) -> Cell:
-        return self.board[position[ROW_INDEX]][position[COLUMN_INDEX]]
+    # WALLS
 
     def place_wall(self, top_left_cell: Cell, orientation: WallOrientation) -> bool:
         if top_left_cell.position[COLUMN_INDEX] >= SIZE - 1 or top_left_cell.position[ROW_INDEX] >= SIZE - 1:
@@ -97,6 +37,96 @@ class Board(BaseModel):
         self.walls.add(new_wall)
         return True
 
+    def bfs(self, start: Position, destination_set: set[Position]) -> Optional[list[Position]]:
+
+        queue = deque([(start, [])])  # Start with the player's position
+        visited = set()
+        visited.add(start)
+
+        while queue:
+            current_position, path = queue.popleft()
+
+            # If we reach a destination, return the path
+            if current_position in destination_set:
+                return path + [current_position]
+
+            # Explore all valid moves (neighboring cells)
+            for direction, (row_change, col_change) in MOVEMENT_VECTORS.items():
+                new_position = (current_position[ROW_INDEX] + row_change, current_position[COLUMN_INDEX] + col_change)
+
+                # If it's a valid move and hasn't been visited
+                if self.is_valid_move(current_position, new_position) and new_position not in visited:
+                    visited.add(new_position)
+                    queue.append((new_position, path + [current_position]))
+
+        return None  # No path found
+
+    def validate_wall_placement(self, wall: Wall, players: list[Player]) -> bool:
+        # 1. Check if the wall is within boundaries
+        if not self._is_within_boundaries(wall):
+            return False
+
+        # 2. Check if the wall overlaps with an existing wall
+        if self._overlaps_with_existing_wall(wall):
+            return False
+
+        # 3. Ensure no player is blocked from reaching their destination
+        if not self._players_have_paths(players, wall):
+            return False
+
+        return True
+
+    def _is_within_boundaries(self, wall: Wall) -> bool:
+        row, col = wall.top_left_cell.position
+        if not (0 <= row < SIZE and 0 <= col < SIZE):
+            return False
+        return True
+
+    def _overlaps_with_existing_wall(self, new_wall: Wall) -> bool:
+        for wall in self.walls:
+            # Exact wall already exists
+            if wall == new_wall:
+                return True
+            # Top-left cell conflict
+            if wall.top_left_cell == new_wall.top_left_cell:
+                return True
+            else:
+                # Partial overlap - vertical
+                if (
+                    new_wall.orientation == WallOrientation.VERTICAL
+                    and wall.orientation == WallOrientation.VERTICAL
+                    and abs(wall.top_left_cell.position[ROW_INDEX] - new_wall.top_left_cell.position[ROW_INDEX]) == 1
+                ):
+                    return True
+                # Partial overlap - horizontal
+                elif (
+                    new_wall.orientation == WallOrientation.HORIZONTAL
+                    and wall.orientation == WallOrientation.HORIZONTAL
+                    and abs(wall.top_left_cell.position[COLUMN_INDEX] - new_wall.top_left_cell.position[COLUMN_INDEX])
+                    == 1
+                ):
+                    return True
+        return False
+
+    def _players_have_paths(self, players: list[Player], proposed_wall: Wall) -> bool:
+        # Temporarily add the wall for pathfinding test
+        self.walls.add(proposed_wall)
+        all_players_have_paths = True
+
+        for player in players:
+            destination_set = player.destination
+            path = self.bfs(player.position, destination_set)
+            if path is None:
+                all_players_have_paths = False
+                break
+
+        # Remove the wall after testing
+        self.walls.remove(proposed_wall)
+
+        return all_players_have_paths
+
+    ### MOVEMENT
+
     def get_valid_moves(self, player: Player) -> dict[Direction, Position]:
         valid_moves = {}
         for direction, (row_change, col_change) in MOVEMENT_VECTORS.items():
@@ -104,12 +134,24 @@ class Board(BaseModel):
             # Invalid
             if not self._is_valid_move(player.position, new_position, can_skip=True):
                 continue
-            # Occupied but skipable
+            # Occupied
             if self._get_cell_at(new_position).is_occupied:
                 after_skip_position = (new_position[ROW_INDEX] + row_change, new_position[COLUMN_INDEX] + col_change)
+                # If skippable
                 if self._is_valid_move(new_position, after_skip_position, can_skip=False):
                     valid_moves[direction] = after_skip_position
-            # Occupied and unskipable
+                # If not skippable
+                else:
+                    orthagonals = direction.orthagonals()
+                    for orthagonal_direction in orthagonals:
+                        row_change, col_change = MOVEMENT_VECTORS[orthagonal_direction]
+                        tested_position = (
+                            new_position[ROW_INDEX] + row_change,
+                            new_position[COLUMN_INDEX] + col_change,
+                        )
+                        if self._is_valid_move(new_position, tested_position, can_skip=False):
+                            valid_moves[direction + orthagonal_direction] = tested_position
+
             elif self._is_valid_move(player.position, new_position, can_skip=False):
                 valid_moves[direction] = new_position
 
@@ -169,6 +211,76 @@ class Board(BaseModel):
 
         return any(wall == wall_to_check for wall in self.walls)
 
+    ### GENERAL UTILS
+
+    def print_board(self, players: iter[Player]):
+        """Print a visual representation of the board with walls."""
+        for row in range(SIZE):
+            # Print cells and vertical walls
+            for col in range(SIZE):
+                cell = self._get_cell_at((row, col))
+
+                # Display cell content (e.g., players)
+                if cell.standing_player:
+                    print(f" {cell.standing_player.name[0]} ", end="")  # Player's first letter
+                else:
+                    value = "."
+                    for player in players:
+                        if player.position == (row, col):
+                            value = player.name
+
+                    print(f" {value} ", end="")  # Empty cell
+
+                # Check if there is a vertical wall to the right of the cell
+                if col < SIZE - 1:  # Ensure we're not at the rightmost edge
+                    vertical_wall_exists = any(
+                        wall.orientation == WallOrientation.VERTICAL
+                        and (
+                            (wall.top_left_cell == self._get_cell_at((row, col)))
+                            or (row > 0 and wall.top_left_cell == self._get_cell_at((row - 1, col)))
+                        )
+                        for wall in self.walls
+                    )
+                    if vertical_wall_exists:
+                        print("|", end="")  # Vertical wall
+                    else:
+                        print(" ", end="")  # No wall
+
+            print()  # Newline after each row of cells
+
+            # Print horizontal walls (if not on the last row)
+            if row < SIZE - 1:
+                for col in range(SIZE):
+                    horizontal_wall_exists = any(
+                        wall.orientation == WallOrientation.HORIZONTAL
+                        and (
+                            (wall.top_left_cell == self._get_cell_at((row, col)))
+                            or (col > 0 and wall.top_left_cell == self._get_cell_at((row, col - 1)))
+                        )
+                        for wall in self.walls
+                    )
+                    if horizontal_wall_exists:
+                        print("---", end="")  # Horizontal wall
+                    else:
+                        print("   ", end="")  # No wall
+
+                    # Add spacing between columns
+                    if col < SIZE - 1:
+                        print(" ", end="")
+
+                print()  # Newline after each row of walls
+
+    def set_occupation_state(self, players: set[Player]) -> None:
+        for row in self.board:
+            for cell in row:
+                if cell.position in {player.position for player in players}:
+                    cell.place_player(next(player for player in players if player.position == cell.position))
+                else:
+                    cell.remove_player()
+
+    def _get_cell_at(self, position: Position) -> Cell:
+        return self.board[position[ROW_INDEX]][position[COLUMN_INDEX]]
+
 # cell.py
 from typing import Optional
 from pydantic import BaseModel
@@ -212,6 +324,30 @@ class Direction(str, Enum):
     DOWN = "down"
     RIGHT = "right"
     LEFT = "left"
+    UP_RIGHT = "upright"
+    UP_LEFT = "upleft"
+    DOWN_RIGHT = "downright"
+    DOWN_LEFT = "downleft"
+
+    def __add__(self, direction: "Direction") -> "Direction":
+        try:
+            try:
+                return Direction(self.value + direction.value)
+            except ValueError:
+                return Direction(direction.value + self.value)
+        except ValueError as e:
+            raise ValueError(
+                f"You can only add orthagonal, on-axis direction (tried to add {self.value} and {direction.value})."
+            )
+
+    def orthagonals(self) -> "Direction":
+        vertical_directions = {Direction.UP, Direction.DOWN}
+        horizontal_directions = {Direction.RIGHT, Direction.LEFT}
+        if self in vertical_directions:
+            return horizontal_directions
+        elif self in horizontal_directions:
+            return vertical_directions
+        return {}
 
     def opposite(self) -> "Direction":
         if self == Direction.UP:
@@ -255,10 +391,14 @@ from backend.quoridor.src.quoridor.consts import MOVEMENT_VECTORS, Direction, Po
 class Player(BaseModel):
     name: str
     position: Position
+    destination: set[Position] = Field(default={})
     wall_count: int = Field(default=10)
 
     class Config:
         arbitrary_types_allowed = True
+
+    def has_reached_destination(self) -> bool:
+        return self.position in self.destination
 
     def move(self, direction: Direction, skip: bool = False) -> None:
         row_change, col_change = MOVEMENT_VECTORS[direction]

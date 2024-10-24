@@ -6,10 +6,14 @@ from backend.quoridor.src.quoridor.consts import MOVEMENT_VECTORS, Direction, Po
 class Player(BaseModel):
     name: str
     position: Position
+    destination: set[Position] = Field(default={})
     wall_count: int = Field(default=10)
 
     class Config:
         arbitrary_types_allowed = True
+
+    def has_reached_destination(self) -> bool:
+        return self.position in self.destination
 
     def move(self, direction: Direction, skip: bool = False) -> None:
         row_change, col_change = MOVEMENT_VECTORS[direction]

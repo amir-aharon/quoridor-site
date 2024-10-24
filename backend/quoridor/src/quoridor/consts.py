@@ -15,6 +15,30 @@ class Direction(str, Enum):
     DOWN = "down"
     RIGHT = "right"
     LEFT = "left"
+    UP_RIGHT = "upright"
+    UP_LEFT = "upleft"
+    DOWN_RIGHT = "downright"
+    DOWN_LEFT = "downleft"
+
+    def __add__(self, direction: "Direction") -> "Direction":
+        try:
+            try:
+                return Direction(self.value + direction.value)
+            except ValueError:
+                return Direction(direction.value + self.value)
+        except ValueError as e:
+            raise ValueError(
+                f"You can only add orthagonal, on-axis direction (tried to add {self.value} and {direction.value})."
+            )
+
+    def orthagonals(self) -> "Direction":
+        vertical_directions = {Direction.UP, Direction.DOWN}
+        horizontal_directions = {Direction.RIGHT, Direction.LEFT}
+        if self in vertical_directions:
+            return horizontal_directions
+        elif self in horizontal_directions:
+            return vertical_directions
+        return {}
 
     def opposite(self) -> "Direction":
         if self == Direction.UP:

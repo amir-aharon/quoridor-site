@@ -11,12 +11,12 @@ hor = WallOrientation.HORIZONTAL
 b.place_wall(tl, vert)
 b.place_wall(tl, hor)
 
-b.print_board()
+p1 = Player(name="1", position=(3, 3))
+p2 = Player(name="2", position=(3, 2))
 
-p1 = Player(name="a", position=(3, 3))
-p2 = Player(name="b", position=(3, 2))
+b.print_board([p1, p2])
 
 
 b.set_occupation_state({p1, p2})
-b.get_valid_moves(p1)
+# b.get_valid_moves(p1)
 b.get_valid_moves(p2)
