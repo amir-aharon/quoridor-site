@@ -1,0 +1,51 @@
+.board {
+  font-size: 12px;
+  width: 60em;
+  height: 60em;
+  background-color: rgb(106, 70, 70);
+  border-radius: 16px;
+  padding: 1.5em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.cell {
+  width: 5em;
+  height: 5em;
+  background-color: rgb(46, 34, 34);
+  margin: 0;
+}
+.cell.selectable {
+  cursor: pointer;
+}
+.cell.selectable:hover {
+  background-color: #453333;
+}
+.cell.selected {
+  background-color: #3d2d2d;
+}
+
+.wall {
+  width: 1.5em;
+  height: 1.5em;
+  background-color: rgb(106, 70, 70);
+  margin: 0;
+  transition: background-color 0.3s ease, transform 0.1s ease-out;
+}
+.wall.hovered {
+  background-color: rgb(220, 202, 197);
+  cursor: pointer;
+}
+.wall.occupied {
+  background-color: rgb(203, 170, 120);
+}
+
+.wall-vertical {
+  height: 5em;
+}
+
+.wall-horizontal {
+  width: 5em;
+}/*# sourceMappingURL=Board.css.map */

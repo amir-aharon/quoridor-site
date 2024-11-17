@@ -1,0 +1,666 @@
+# App.css
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+# App.tsx
+import './App.css';
+import Board from './components/board/Board.tsx';
+
+const App: React.FC = () => {
+  return (
+    <>
+      <Board />
+    </>
+  );
+};
+
+export default App;
+
+# components/board/Board.tsx
+import React from 'react';
+import Cell from './Cell';
+import Wall from './Wall';
+import '../../style/Board.css';
+import { Orientation } from '../../utils/types';
+import { useWalls } from '../../hooks/useWalls';
+import { useWallInteractions } from '../../hooks/useWallInteractions';
+
+const Board: React.FC = () => {
+  const rows = [...Array(9).keys()];
+  const columns = [...Array(9).keys()];
+
+  const { walls, setWalls } = useWalls(9);
+  const { handleWallHover, toggleOccupation } = useWallInteractions(
+    walls,
+    setWalls
+  );
+
+  const generateWall = (row: number, col: number, orientation: Orientation) => {
+    const wall = walls.find(
+      (w) => w.row === row && w.col === col && w.orientation === orientation
+    );
+
+    if (!wall) return null;
+    return (
+      <Wall
+        wall={wall}
+        onHover={() => handleWallHover(wall)}
+        toggleOccupation={toggleOccupation}
+      />
+    );
+  };
+
+  const generateCell = (row: number, col: number) => {
+    const cell = {
+      row,
+      col,
+      standingPlayer: null,
+      presentedOption: false,
+      selected: false,
+      hovered: false,
+      occupied: false,
+    };
+
+    if (!cell) return null;
+    return <Cell cell={cell} />;
+  };
+
+  return (
+    <div className="board">
+      {rows.map((row) => (
+        <React.Fragment key={`row-${row}`}>
+          {columns.map((col) => (
+            <React.Fragment key={`vertical-${row}-${col}`}>
+              {generateCell(row, col)}
+              {col !== columns.length - 1 &&
+                generateWall(row, col, Orientation.Vertical)}
+            </React.Fragment>
+          ))}
+          {row !== rows.length - 1 &&
+            columns.map((col) => (
+              <React.Fragment key={`horizontal-${row}-${col}`}>
+                {generateWall(row, col, Orientation.Horizontal)}
+                {col !== columns.length - 1 &&
+                  generateWall(row, col, Orientation.None)}
+              </React.Fragment>
+            ))}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+export default Board;
+
+# components/board/Cell.tsx
+import { useState } from 'react';
+import { CellState } from '../../utils/types';
+
+interface CellProps {
+  cell: CellState;
+}
+
+const Cell: React.FC<CellProps> = ({ cell }) => {
+  const [clicked, setClicked] = useState(false);
+
+  const handleClick = () => {
+    console.log(clicked);
+    setClicked(!clicked); // Toggle clicked state
+  };
+
+  return (
+    <div
+      className={`cell ${
+        cell.standingPlayer != null
+          ? 'player-' + cell.standingPlayer.playerId
+          : ''
+      } ${cell.presentedOption ? 'presented-option' : ''}
+      ${clicked ? 'clicked' : ''}`} // Use wall.occupied here
+      onClick={handleClick}
+    >
+      {cell.row}
+      {cell.col}
+    </div>
+  );
+};
+
+export default Cell;
+
+# components/board/Wall.tsx
+import React from 'react';
+import { WallState } from '../../utils/types';
+
+interface WallProps {
+  wall: WallState;
+  onHover: (
+    row: number,
+    col: number,
+    orientation: WallState['orientation']
+  ) => void;
+  toggleOccupation: (
+    row: number,
+    col: number,
+    orientation: WallState['orientation']
+  ) => void;
+}
+
+const Wall: React.FC<WallProps> = ({ wall, onHover, toggleOccupation }) => {
+  const handleHover = () => {
+    onHover(wall.row, wall.col, wall.orientation);
+  };
+
+  const handleClick = () => {
+    toggleOccupation(wall.row, wall.col, wall.orientation);
+  };
+
+  return (
+    <div
+      className={`wall wall-${wall.orientation} ${
+        wall.selected ? 'hovered' : ''
+      } ${wall.occupied ? 'occupied' : ''}`} // Use wall.occupied here
+      onMouseEnter={handleHover}
+      onMouseLeave={handleHover}
+      onClick={handleClick}
+    />
+  );
+};
+
+export default Wall;
+
+# hooks/useWallInteractions.ts
+// hooks/useWallInteractions.ts
+import { WallState } from '../utils/types';
+import { getWallsToToggle } from '../utils/wallUtils';
+
+export const useWallInteractions = (
+  walls: WallState[],
+  setWalls: React.Dispatch<React.SetStateAction<WallState[]>>
+) => {
+  const handleWallHover = (wall: WallState) => {
+    const wallsToToggle = getWallsToToggle(wall, walls);
+    setWalls((prevWalls) =>
+      prevWalls.map((w) =>
+        wallsToToggle.some(
+          (toggledWall) =>
+            toggledWall.row === w.row &&
+            toggledWall.col === w.col &&
+            toggledWall.orientation === w.orientation
+        )
+          ? { ...w, selected: !w.selected }
+          : w
+      )
+    );
+  };
+
+  const toggleOccupation = () => {
+    setWalls((prevWalls) =>
+      prevWalls.map((wall) =>
+        wall.selected ? { ...wall, occupied: true } : wall
+      )
+    );
+  };
+
+  return { handleWallHover, toggleOccupation };
+};
+
+# hooks/useWalls.ts
+// hooks/useWalls.ts
+import { useState } from 'react';
+import { Orientation, WallState } from '../utils/types';
+
+export const useWalls = (boardSize: number) => {
+  const [walls, setWalls] = useState<WallState[]>(() => {
+    const initialWalls: WallState[] = [];
+    [...Array(boardSize).keys()].forEach((row) => {
+      [...Array(boardSize).keys()].forEach((col) => {
+        initialWalls.push(
+          {
+            row,
+            col,
+            orientation: Orientation.Horizontal,
+            selected: false,
+            occupied: false,
+          },
+          {
+            row,
+            col,
+            orientation: Orientation.Vertical,
+            selected: false,
+            occupied: false,
+          },
+          {
+            row,
+            col,
+            orientation: Orientation.None,
+            selected: false,
+            occupied: false,
+          }
+        );
+      });
+    });
+    return initialWalls;
+  });
+
+  return { walls, setWalls };
+};
+
+# index.css
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+  -moz-box-sizing: border-box; /* Firefox, other Gecko */
+  box-sizing: border-box; /* Opera/IE 8+ */
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+# main.css
+.board {
+  width: 60rem;
+  height: 60rem;
+  background-color: rgb(106, 70, 70);
+  border-radius: 16px;
+}/*# sourceMappingURL=main.css.map */
+# main.css.map
+{"version":3,"sources":["style/Board.scss","style/_palette.scss","main.css"],"names":[],"mappings":"AAEA;EACE,YAAA;EACA,aAAA;EACA,kCCJM;EDKN,mBAAA;AEDF","file":"main.css"}
+# main.scss
+@import 'style/Board.scss';
+
+# main.tsx
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './index.css';
+import App from './App.tsx';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+
+# style/Board.css
+.board {
+  font-size: 12px;
+  width: 60em;
+  height: 60em;
+  background-color: rgb(106, 70, 70);
+  border-radius: 16px;
+  padding: 1.5em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.cell {
+  width: 5em;
+  height: 5em;
+  background-color: rgb(46, 34, 34);
+  margin: 0;
+  cursor: pointer;
+}
+.cell:hover {
+  background-color: #453333;
+}
+.cell.clicked {
+  background-color: #3d2d2d;
+}
+
+.wall {
+  width: 1.5em;
+  height: 1.5em;
+  background-color: rgb(106, 70, 70);
+  margin: 0;
+  transition: background-color 0.3s ease, transform 0.1s ease-out;
+}
+.wall.hovered {
+  background-color: rgb(220, 202, 197);
+  cursor: pointer;
+}
+.wall.occupied {
+  background-color: rgb(203, 170, 120);
+}
+
+.wall-vertical {
+  height: 5em;
+}
+
+.wall-horizontal {
+  width: 5em;
+}/*# sourceMappingURL=Board.css.map */
+# style/Board.css.map
+{"version":3,"sources":["Board.scss","_palette.scss","Board.css"],"names":[],"mappings":"AAEA;EACE,eAAA;EACA,WAAA;EACA,YAAA;EACA,kCCLM;EDMN,mBAAA;EACA,cAAA;EACA,SAAA;EACA,aAAA;EACA,eAAA;EACA,8BAAA;AEDF;;AFWA;EACE,UAAA;EACA,WAAA;EACA,iCCzBK;ED0BL,SAAA;EAUA,eAAA;AEjBF;AFSE;EACE,yBAAA;AEPJ;AFUE;EACE,yBAAA;AERJ;;AFkBA;EACE,YAAA;EACA,aAAA;EACA,kCC7CM;ED8CN,SAAA;EAEA,+DAAA;AEhBF;AFkBE;EACE,oCCjDW;EDkDX,eAAA;AEhBJ;AFmBE;EACE,oCCvDG;ACsCP;;AFqBA;EACE,WAAA;AElBF;;AFqBA;EACE,UAAA;AElBF","file":"Board.css"}
+# style/Board.scss
+@import './palette';
+
+.board {
+  font-size: 12px;
+  width: 60em;
+  height: 60em;
+  background-color: $board;
+  border-radius: 16px;
+  padding: 1.5em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+@mixin lighten-hover($base-color, $amount: 10%) {
+  transition: background-color 0.3s ease; // Smooth transition
+  &:hover {
+    background-color: lighten($base-color, $amount); // Make it lighter
+  }
+}
+
+.cell {
+  width: 5em;
+  height: 5em;
+  background-color: $cell;
+  margin: 0;
+
+  &:hover {
+    background-color: lighten($cell, 8%); // Make it lighter
+  }
+
+  &.clicked {
+    background-color: lighten($cell, 5%); // Make it lighter
+  }
+  // @include lighten-hover($cell, 5%);
+  cursor: pointer;
+}
+
+// .clicked {
+//   background-color: #fff !important;
+// }
+
+.wall {
+  width: 1.5em;
+  height: 1.5em;
+  background-color: $board;
+  margin: 0;
+
+  transition: background-color 0.3s ease, transform 0.1s ease-out;
+
+  &.hovered {
+    background-color: $light-player;
+    cursor: pointer;
+  }
+
+  &.occupied {
+    background-color: $wall;
+  }
+}
+
+.wall-vertical {
+  height: 5em;
+}
+
+.wall-horizontal {
+  width: 5em;
+}
+
+# style/_palette.scss
+$cell: rgba(46, 34, 34, 1);
+$board: rgba(106, 70, 70, 1);
+$wall: rgba(203, 170, 120, 1);
+$light-player: rgba(220, 202, 197, 1);
+$dark-player: rgba(113, 149, 136, 1);
+$background: rgba(48, 46, 43, 1);
+
+# utils/types.ts
+export enum Orientation {
+  Horizontal = 'horizontal',
+  Vertical = 'vertical',
+  None = 'none',
+}
+
+export interface WallState {
+  row: number;
+  col: number;
+  orientation: Orientation;
+  selected: boolean;
+  occupied: boolean; // Ensure this is defined
+}
+
+export interface CellState {
+  row: number;
+  col: number;
+  standingPlayer: PlayerState | null;
+  presentedOption: boolean;
+  selected: boolean;
+  hovered: boolean; // Ensure this is defined
+}
+
+export interface PlayerState {
+  playerId: string;
+}
+
+# utils/wallUtils.ts
+// utils/wallUtils.ts
+import { WallState, Orientation } from './types';
+
+// Function to get the walls to toggle on hover
+export const getWallsToToggle = (
+  wall: WallState,
+  walls: WallState[]
+): WallState[] => {
+  let wallsToToggle: WallState[] = [];
+
+  if (wall.occupied) return [];
+
+  if (wall.orientation === Orientation.Horizontal) {
+    // Add the horizontal wall itself
+    wallsToToggle.push(wall);
+
+    // Add the adjacent "None" wall and "Horizontal" wall to the left
+    const leftNoneWall = walls.find(
+      (w) =>
+        w.row === wall.row &&
+        w.col === wall.col - 1 &&
+        w.orientation === Orientation.None
+    );
+    const leftHorizontalWall = walls.find(
+      (w) =>
+        w.row === wall.row &&
+        w.col === wall.col - 1 &&
+        w.orientation === Orientation.Horizontal
+    );
+
+    if (leftNoneWall && !leftNoneWall.occupied)
+      wallsToToggle.push(leftNoneWall);
+    if (leftHorizontalWall && !leftHorizontalWall.occupied)
+      wallsToToggle.push(leftHorizontalWall);
+  }
+
+  if (wall.orientation === Orientation.Vertical) {
+    // Add the vertical wall itself
+    wallsToToggle.push(wall);
+
+    // Add the adjacent "None" wall and "Vertical" wall above
+    const belowNoneWall = walls.find(
+      (w) =>
+        w.row === wall.row &&
+        w.col === wall.col &&
+        w.orientation === Orientation.None
+    );
+    const belowVerticalWall = walls.find(
+      (w) =>
+        w.row === wall.row + 1 &&
+        w.col === wall.col &&
+        w.orientation === Orientation.Vertical
+    );
+
+    if (belowNoneWall && !belowNoneWall.occupied)
+      wallsToToggle.push(belowNoneWall);
+    if (belowVerticalWall && !belowVerticalWall.occupied)
+      wallsToToggle.push(belowVerticalWall);
+  }
+
+  if (wallsToToggle.length < 3) {
+    wallsToToggle = [];
+
+    if (wall.orientation === Orientation.Horizontal) {
+      // Add the horizontal wall itself
+      wallsToToggle.push(wall);
+
+      // Add the adjacent horizontal wall to the right
+      const rightHorizontalWall = walls.find(
+        (w) =>
+          w.row === wall.row &&
+          w.col === wall.col + 1 &&
+          w.orientation === Orientation.Horizontal
+      );
+      const rightNoneWall = walls.find(
+        (w) =>
+          w.row === wall.row &&
+          w.col === wall.col &&
+          w.orientation === Orientation.None
+      );
+
+      if (rightNoneWall && !rightNoneWall.occupied)
+        wallsToToggle.push(rightNoneWall);
+      if (rightHorizontalWall && !rightHorizontalWall.occupied)
+        wallsToToggle.push(rightHorizontalWall);
+      else return []; // Ensure no walls are hovered if the pair is incomplete
+    }
+
+    if (wall.orientation === Orientation.Vertical) {
+      // Add the vertical wall itself
+      wallsToToggle.push(wall);
+
+      // Add the adjacent "None" wall and "Vertical" wall above
+      const aboveNoneWall = walls.find(
+        (w) =>
+          w.row === wall.row - 1 &&
+          w.col === wall.col &&
+          w.orientation === Orientation.None
+      );
+      const aboveVerticalWall = walls.find(
+        (w) =>
+          w.row === wall.row - 1 &&
+          w.col === wall.col &&
+          w.orientation === Orientation.Vertical
+      );
+
+      if (aboveNoneWall && !aboveNoneWall.occupied)
+        wallsToToggle.push(aboveNoneWall);
+      if (aboveVerticalWall && !aboveVerticalWall.occupied)
+        wallsToToggle.push(aboveVerticalWall);
+    }
+  }
+
+  if (wallsToToggle.length < 3) return [];
+
+  return wallsToToggle;
+};
+
+# vite-env.d.ts
+/// <reference types="vite/client" />
+

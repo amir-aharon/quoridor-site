@@ -1,0 +1,71 @@
+@import './palette';
+
+.board {
+  font-size: 12px;
+  width: 60em;
+  height: 60em;
+  background-color: $board;
+  border-radius: 16px;
+  padding: 1.5em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+@mixin lighten-hover($base-color, $amount: 10%) {
+  transition: background-color 0.3s ease; // Smooth transition
+  &:hover {
+    background-color: lighten($base-color, $amount); // Make it lighter
+  }
+}
+
+.cell {
+  width: 5em;
+  height: 5em;
+  background-color: $cell;
+  margin: 0;
+
+  // @include lighten-hover($cell, 5%);
+  &.selectable {
+    cursor: pointer;
+
+    &:hover {
+      background-color: lighten($cell, 8%); // Make it lighter
+    }
+  }
+
+  &.selected {
+    background-color: lighten($cell, 5%); // Make it lighter
+  }
+}
+
+// .clicked {
+//   background-color: #fff !important;
+// }
+
+.wall {
+  width: 1.5em;
+  height: 1.5em;
+  background-color: $board;
+  margin: 0;
+
+  transition: background-color 0.3s ease, transform 0.1s ease-out;
+
+  &.hovered {
+    background-color: $light-player;
+    cursor: pointer;
+  }
+
+  &.occupied {
+    background-color: $wall;
+  }
+}
+
+.wall-vertical {
+  height: 5em;
+}
+
+.wall-horizontal {
+  width: 5em;
+}

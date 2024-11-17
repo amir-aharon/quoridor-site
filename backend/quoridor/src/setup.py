@@ -21,7 +21,7 @@ setup(
     version="0.1.0",
     description="Quoridor game logic module",
     install_requires=get_requirements(),
-    python_requires=">=3.13",
+    python_requires=">=3.12",
     entry_points={
         "console_scripts": [
             "quoridor = quoridor.main:main",
